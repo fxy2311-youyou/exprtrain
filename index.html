@@ -68,10 +68,11 @@
       </div>
 
       <!-- 字幕滚动区 -->
-      <div id="subtitle-scroll" class="subtitle-scroll">
+      <div id="subtitle-scroll" class="subtitle-scroll" style="position:relative;">
         <div id="subtitle-container" class="subtitle-container">
           <div class="subtitle-line hint">点击下方按钮开始说话</div>
         </div>
+        <div id="watermark-inner" class="watermark-inner">Powered by ExprTrain</div>
       </div>
 
       <!-- 底部按钮 -->
@@ -158,6 +159,7 @@
           <div>⚠️ <strong>填充词检测</strong> — 自动标红"嗯、啊、那个、就是"</div>
           <div>📊 <strong>练习统计</strong> — 时长、字数、填充词占比</div>
           <div>📝 <strong>AI分析报告</strong> — 11个维度的详细反馈</div>
+          <div>🌍 <strong>中英双语</strong> — 点击顶部「ZH/EN」切换语言</div>
         </div>
         <p style="color:#FFD000;font-size:13px;font-weight:600;margin-bottom:24px;">💡 右上角设置API Key可生成AI分析。</p>
         <button id="btn-welcome-start" class="btn-main btn-start" style="margin:0 auto;padding:12px 32px;font-size:14px;">开始练习</button>
@@ -273,6 +275,22 @@
         <p style="color:#aaa;font-size:14px;margin-bottom:16px;">感谢使用宇宙无敌表达系统 ✨</p>
         <p style="color:#ccc;font-size:14px;">微信联系 sisi，获取更多训练资源</p>
         <p style="color:#666;font-size:12px;margin-top:16px;">(后续会加微信收款码)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 去水印弹窗 -->
+  <div id="remove-wm-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h2>✨ 去除水印</h2>
+        <button id="btn-close-rmwm" class="btn-close">×</button>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:32px;">
+        <p style="color:#ccc;font-size:15px;margin-bottom:12px;font-weight:600;">解锁无水印模式 ¥9.9</p>
+        <p style="color:#888;font-size:13px;margin-bottom:24px;line-height:1.8;">付款后水印永久消失，支持你喜欢的工具继续迭代。<br>每一笔都会让这个系统变得更好。</p>
+        <p style="color:#666;font-size:12px;margin-bottom:16px;">(微信扫码付款，后续添加收款码)</p>
+        <button id="btn-paid-rmwm" class="btn-main btn-start" style="margin:0 auto;padding:10px 24px;font-size:13px;">我已付款，去除水印</button>
       </div>
     </div>
   </div>

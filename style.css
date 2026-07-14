@@ -514,3 +514,17 @@ button, input, select, textarea, .subtitle-scroll, .feedback-content, .modal-bod
     font-size: 11px;
   }
 }
+
+/* 水印 */
+.watermark-inner {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+.watermark-inner.hidden { display: none; }
