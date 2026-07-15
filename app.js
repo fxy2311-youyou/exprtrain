@@ -411,6 +411,56 @@ async function callAI(messages, maxTokens = 200) {
 }
 
 // ===== 文本分析（本地词库） =====
+function getEnglishTokens(text) {
+  const pattern = /[\p{L}\p{N}]+(?:['_’-][\p{L}\p{N}]+)*/gu;
+  const tokens = [];
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    tokens.push({ word: match[0], start: match.index });
+  }
+  return tokens;
+}
+
+function findEnglishMatches(text) {
+  // 全词库按词数降序，避免较短词组抢先匹配
+  const terms = [
+    ...FILLER_WORDS_EN.map(word => ({ word, type: 'filler' })),
+    ...HEDGE_WORDS_EN.map(word => ({ word, type: 'hedge' })),
+    ...Object.entries(VAGUE_TO_PRECISE_EN).map(([word, alternatives]) => ({ word, type: 'vague', alternatives }))
+  ].sort((a, b) => {
+    const wordCountDiff = b.word.split(/\s+/).length - a.word.split(/\s+/).length;
+    return wordCountDiff || b.word.length - a.word.length;
+  });
+
+  const termMap = new Map(terms.map(term => [term.word.toLowerCase(), term]));
+  const source = terms.map(term => term.word
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\s+/g, '\\s+'))
+    .join('|');
+  const pattern = new RegExp(`(^|[^\\p{L}\\p{N}_'’-])(${source})(?=$|[^\\p{L}\\p{N}_'’-])`, 'giu');
+  const tokens = getEnglishTokens(text);
+  const matches = [];
+  let tokenIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const word = match[2];
+    const start = match.index + match[1].length;
+    const term = termMap.get(word.toLowerCase().replace(/\s+/g, ' '));
+    while (tokens[tokenIndex] && tokens[tokenIndex].start < start) tokenIndex++;
+    matches.push({
+      word,
+      type: term.type,
+      position: tokenIndex,
+      alternatives: term.alternatives,
+      start,
+      end: start + word.length
+    });
+  }
+
+  return matches;
+}
+
 function analyzeText(text) {
   if (!text || !text.trim()) return null;
 
@@ -421,6 +471,23 @@ function analyzeText(text) {
 
   const words = segmentText(text);
   const totalWords = words.length;
+
+  if (lang === 'en') {
+    const matches = findEnglishMatches(text);
+    const fillers = matches
+      .filter(match => match.type === 'filler')
+      .map(({ word, position }) => ({ word, position }));
+    const hedges = matches
+      .filter(match => match.type === 'hedge')
+      .map(({ word, position }) => ({ word, position }));
+    const vagueWords = matches
+      .filter(match => match.type === 'vague')
+      .map(({ word, position, alternatives }) => ({ word, position, alternatives }));
+    const meaningfulWords = totalWords - fillers.length - hedges.length;
+    const density = totalWords > 0 ? (meaningfulWords / totalWords) : 1;
+
+    return { totalWords, fillers, hedges, vagueWords, density: Math.round(density * 100) };
+  }
 
   const fillers = [];
   words.forEach((word, idx) => {
@@ -449,8 +516,7 @@ function analyzeText(text) {
 
 function segmentText(text) {
   if (getLang() === 'en') {
-    // 英文用空格分词
-    return text.split(/\s+/).filter(w => w.length > 0);
+    return getEnglishTokens(text).map(token => token.word);
   }
   // 中文用词典匹配
   const words = [];
@@ -478,6 +544,14 @@ function segmentText(text) {
     }
   }
   return words;
+}
+
+function appendTranscript(existing, text) {
+  if (getLang() !== 'en') return existing + text;
+  const base = existing.trimEnd();
+  const chunk = text.trim();
+  if (!base || !chunk) return base || chunk;
+  return `${base}${/^[.,!?;:%…)\]}]/.test(chunk) ? '' : ' '}${chunk}`;
 }
 
 // ===== 设置管理 =====
@@ -750,9 +824,9 @@ class ExpressionTrainer {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript;
+          finalTranscript = appendTranscript(finalTranscript, transcript);
         } else {
-          interimTranscript += transcript;
+          interimTranscript = appendTranscript(interimTranscript, transcript);
         }
       }
 
@@ -870,7 +944,7 @@ class ExpressionTrainer {
   handleASRResult({ text, isFinal }) {
     if (isFinal) {
       this.sentences.push(text);
-      this.fullText += text;
+      this.fullText = appendTranscript(this.fullText, text);
       this.analyzeCurrentSentence(text);
 
       // 每30字触发一次AI反馈
@@ -908,6 +982,20 @@ class ExpressionTrainer {
   }
 
   highlightText(text) {
+    if (getLang() === 'en') {
+      const matches = findEnglishMatches(text);
+      let result = '';
+      let lastIndex = 0;
+
+      matches.forEach(match => {
+        result += text.slice(lastIndex, match.start);
+        result += `<span class="${match.type}">${text.slice(match.start, match.end)}</span>`;
+        lastIndex = match.end;
+      });
+
+      return result + text.slice(lastIndex);
+    }
+
     let result = text;
     const fillers = getFillerWords();
     const hedges = getHedgeWords();
