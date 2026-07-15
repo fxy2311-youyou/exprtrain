@@ -131,7 +131,9 @@
 
   <!-- 侧边社交链接 -->
   <div class="social-links" id="social-links">
-    <button class="social-toggle" id="social-toggle">🔗</button>
+    <button class="social-toggle" id="social-toggle" style="background:#111;border:1.5px solid #E5007E;border-radius:6px;padding:6px 8px;line-height:1;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E5007E" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="social-panel hidden" id="social-panel">
       <a href="https://github.com/fxy2311-youyou" target="_blank" title="GitHub">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -139,8 +141,11 @@
       <a href="https://xhslink.com/m/6lPpdmQ6Kic" target="_blank" title="小红书">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm4 0h-2v-6h2v6zm-2-8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
       </a>
-      <a href="#" target="_blank" title="Twitter">
+      <a href="https://x.com/fngugu129289?s=11" target="_blank" title="X / Twitter">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+      </a>
+      <a href="#" id="btn-coffee" title="☕ 请我喝杯咖啡">
+        <span style="font-size:18px;">☕</span>
       </a>
     </div>
   </div>
@@ -280,17 +285,18 @@
   </div>
 
   <!-- 去水印弹窗 -->
-  <div id="remove-wm-modal" class="modal hidden">
+  <!-- 打赏弹窗 -->
+  <div id="coffee-modal" class="modal hidden">
     <div class="modal-content modal-sm">
       <div class="modal-header">
-        <h2>✨ 去除水印</h2>
-        <button id="btn-close-rmwm" class="btn-close">×</button>
+        <h2>☕ 请我喝杯咖啡</h2>
+        <button id="btn-close-coffee" class="btn-close">×</button>
       </div>
       <div class="modal-body" style="text-align:center;padding:32px;">
-        <p style="color:#ccc;font-size:15px;margin-bottom:12px;font-weight:600;">解锁无水印模式 ¥9.9</p>
-        <p style="color:#888;font-size:13px;margin-bottom:24px;line-height:1.8;">付款后水印永久消失，支持你喜欢的工具继续迭代。<br>每一笔都会让这个系统变得更好。</p>
-        <p style="color:#666;font-size:12px;margin-bottom:16px;">(微信扫码付款，后续添加收款码)</p>
-        <button id="btn-paid-rmwm" class="btn-main btn-start" style="margin:0 auto;padding:10px 24px;font-size:13px;">我已付款，去除水印</button>
+        <p style="color:#ccc;font-size:15px;margin-bottom:12px;font-weight:600;">一杯咖啡解锁无水印模式</p>
+        <p style="color:#888;font-size:13px;margin-bottom:24px;line-height:1.8;">支持你喜欢的工具继续迭代。<br>每一笔都会让这个系统变得更好。</p>
+        <div id="coffee-qr" style="margin-bottom:16px;"><img src="coffee-qr.jpg" alt="微信收款码" style="width:180px;border-radius:8px;"></div>
+        <p style="color:#666;font-size:12px;">微信扫码打赏</p>
       </div>
     </div>
   </div>
