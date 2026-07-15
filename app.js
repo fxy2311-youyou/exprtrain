@@ -628,12 +628,10 @@ class ExpressionTrainer {
     document.getElementById('watermark').addEventListener('click', () => this.tipModal.classList.remove('hidden'));
     document.getElementById('btn-close-tip').addEventListener('click', () => this.tipModal.classList.add('hidden'));
 
-    // Inner watermark (Powered by ExprTrain) - 点击弹出打赏
+    // Inner watermark (Powered by ExprTrain) - 纯展示不可点
     this.watermarkInner = document.getElementById('watermark-inner');
-    this.watermarkInner.style.cursor = 'pointer';
-    this.watermarkInner.style.pointerEvents = 'auto';
+    // 打赏弹窗
     this.coffeeModal = document.getElementById('coffee-modal');
-    this.watermarkInner.addEventListener('click', () => this.coffeeModal.classList.remove('hidden'));
     document.getElementById('btn-close-coffee').addEventListener('click', () => this.coffeeModal.classList.add('hidden'));
     // 侧边栏☕按钮
     document.getElementById('btn-coffee').addEventListener('click', (e) => { e.preventDefault(); this.coffeeModal.classList.remove('hidden'); });
