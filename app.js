@@ -418,23 +418,51 @@ function analyzeText(text) {
   const totalWords = words.length;
 
   const fillers = [];
-  words.forEach((word, idx) => {
-    const w = lang === 'en' ? word.toLowerCase() : word;
-    if (fillerList.some(f => lang === 'en' ? f.toLowerCase() === w : f === w)) fillers.push({ word, position: idx });
-  });
-
   const hedges = [];
-  words.forEach((word, idx) => {
-    const w = lang === 'en' ? word.toLowerCase() : word;
-    if (hedgeList.some(h => lang === 'en' ? h.toLowerCase() === w : h === w)) hedges.push({ word, position: idx });
-  });
-
   const vagueWords = [];
-  words.forEach((word, idx) => {
-    const w = lang === 'en' ? word.toLowerCase() : word;
-    const key = Object.keys(vagueMap).find(k => lang === 'en' ? k.toLowerCase() === w : k === w);
-    if (key) vagueWords.push({ word, position: idx, alternatives: vagueMap[key] });
-  });
+
+  if (lang === 'en') {
+    // 英文模式：需要处理多词短语（如 "you know", "I mean"）
+    const textLower = text.toLowerCase();
+
+    // 多词填充词/犹豫词用正则匹配（带词边界）
+    fillerList.forEach(f => {
+      const escaped = f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('\\b' + escaped + '\\b', 'gi');
+      let match;
+      while ((match = regex.exec(textLower)) !== null) {
+        fillers.push({ word: f.toLowerCase(), position: match.index });
+      }
+    });
+
+    hedgeList.forEach(h => {
+      const escaped = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('\\b' + escaped + '\\b', 'gi');
+      let match;
+      while ((match = regex.exec(textLower)) !== null) {
+        hedges.push({ word: h.toLowerCase(), position: match.index });
+      }
+    });
+
+    // 笼统词仍用单词匹配
+    words.forEach((word, idx) => {
+      const w = word.toLowerCase();
+      const key = Object.keys(vagueMap).find(k => k.toLowerCase() === w);
+      if (key) vagueWords.push({ word, position: idx, alternatives: vagueMap[key] });
+    });
+  } else {
+    // 中文模式：保持原来的词典匹配逻辑
+    words.forEach((word, idx) => {
+      if (fillerList.some(f => f === word)) fillers.push({ word, position: idx });
+    });
+    words.forEach((word, idx) => {
+      if (hedgeList.some(h => h === word)) hedges.push({ word, position: idx });
+    });
+    words.forEach((word, idx) => {
+      const key = Object.keys(vagueMap).find(k => k === word);
+      if (key) vagueWords.push({ word, position: idx, alternatives: vagueMap[key] });
+    });
+  }
 
   const meaningfulWords = totalWords - fillers.length - hedges.length;
   const density = totalWords > 0 ? (meaningfulWords / totalWords) : 1;
@@ -562,6 +590,7 @@ class ExpressionTrainer {
     this.fullText = '';
     this.sentences = [];
     this.stats = { fillers: 0, hedges: 0, vagueWords: 0, totalWords: 0, duration: 0 };
+    this.wordCounts = {}; // 累计每个填充词/犹豫词出现次数，用于阈值判断
     this.lastFeedbackText = '';
     this.lastReport = '';
     this.recognition = null;
@@ -1037,27 +1066,30 @@ class ExpressionTrainer {
 
   highlightText(text) {
     let result = text;
+    const isEn = getLang() === 'en';
     const fillers = getFillerWords();
     const hedges = getHedgeWords();
     const vagueMap = getVagueToPrecise();
     const vagueKeys = Object.keys(vagueMap);
+
+    // 英文模式用 \b 词边界，防止匹配单词内部子串
+    function makePattern(wordList, flags) {
+      const sorted = [...wordList].sort((a, b) => b.length - a.length);
+      const escaped = sorted.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      if (isEn) {
+        return new RegExp('\\b(' + escaped.join('|') + ')\\b', flags);
+      }
+      return new RegExp('(' + escaped.join('|') + ')', flags);
+    }
+
     // 笼统词
-    vagueKeys.sort((a, b) => b.length - a.length).forEach(w => {
-      const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const flags = getLang() === 'en' ? 'gi' : 'g';
-      result = result.replace(new RegExp(escaped, flags), `<span class="vague">${w}</span>`);
-    });
+    const vaguePattern = makePattern(vagueKeys, isEn ? 'gi' : 'g');
+    result = result.replace(vaguePattern, '<span class="vague">$1</span>');
     // 填充词
-    const fillersSorted = [...fillers].sort((a, b) => b.length - a.length);
-    const fillerEscaped = fillersSorted.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const fillerFlags = getLang() === 'en' ? 'gi' : 'g';
-    const fillerPattern = new RegExp('(' + fillerEscaped.join('|') + ')', fillerFlags);
+    const fillerPattern = makePattern(fillers, isEn ? 'gi' : 'g');
     result = result.replace(fillerPattern, '<span class="filler">$1</span>');
     // 犹豫词
-    const hedgesSorted = [...hedges].sort((a, b) => b.length - a.length);
-    const hedgeEscaped = hedgesSorted.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const hedgeFlags = getLang() === 'en' ? 'gi' : 'g';
-    const hedgePattern = new RegExp('(' + hedgeEscaped.join('|') + ')', hedgeFlags);
+    const hedgePattern = makePattern(hedges, isEn ? 'gi' : 'g');
     result = result.replace(hedgePattern, '<span class="hedge">$1</span>');
     return result;
   }
@@ -1072,22 +1104,50 @@ class ExpressionTrainer {
       this.stats.totalWords += analysis.totalWords;
       this.updateStatsDisplay();
 
-      // 笼统词 → 反馈栏弹替换建议
+      // 累计每个词的出现次数
+      analysis.fillers.forEach(f => {
+        const key = 'filler:' + (f.word || '').toLowerCase();
+        this.wordCounts[key] = (this.wordCounts[key] || 0) + 1;
+      });
+      analysis.hedges.forEach(h => {
+        const key = 'hedge:' + (h.word || '').toLowerCase();
+        this.wordCounts[key] = (this.wordCounts[key] || 0) + 1;
+      });
+
+      // 笼统词 → 反馈栏弹替换建议（笼统词不设阈值，出现就提示替换）
       if (analysis.vagueWords.length > 0) {
         analysis.vagueWords.forEach(item => {
           const alts = item.alternatives.slice(0, 3).join(' / ');
           this.addFeedbackItem(`「${item.word}」→ ${alts}`, 'vague');
         });
       }
-      // 填充词提醒
-      if (analysis.fillers.length >= 2) {
-        const uniqueFillers = [...new Set(analysis.fillers.map(f => f.word))].slice(0, 3);
-        this.addFeedbackItem(`填充词：${uniqueFillers.join('、')}——试试停顿`, 'filler');
+
+      // 填充词提醒：只有累计出现≥2次的词才提醒
+      const repeatFillers = analysis.fillers
+        .map(f => f.word.toLowerCase())
+        .filter(w => this.wordCounts['filler:' + w] >= 2);
+      if (repeatFillers.length > 0) {
+        const unique = [...new Set(repeatFillers)].slice(0, 3);
+        const lang = getLang();
+        if (lang === 'en') {
+          this.addFeedbackItem(`Filler: ${unique.join(', ')} — try pausing`, 'filler');
+        } else {
+          this.addFeedbackItem(`填充词：${unique.join('、')}——试试停顿`, 'filler');
+        }
       }
-      // 犹豫词提醒
-      if (analysis.hedges.length >= 1) {
-        const uniqueHedges = [...new Set(analysis.hedges.map(h => h.word))].slice(0, 2);
-        this.addFeedbackItem(`「${uniqueHedges.join('」「')}」→ 直接说`, 'hedge');
+
+      // 犹豫词提醒：只有累计出现≥2次的词才提醒
+      const repeatHedges = analysis.hedges
+        .map(h => h.word.toLowerCase())
+        .filter(w => this.wordCounts['hedge:' + w] >= 2);
+      if (repeatHedges.length > 0) {
+        const unique = [...new Set(repeatHedges)].slice(0, 2);
+        const lang = getLang();
+        if (lang === 'en') {
+          this.addFeedbackItem(`Hedging: ${unique.join(', ')} — be direct`, 'hedge');
+        } else {
+          this.addFeedbackItem(`「${unique.join('」「')}」→ 直接说`, 'hedge');
+        }
       }
     }
   }
@@ -1280,6 +1340,7 @@ class ExpressionTrainer {
 
   resetStats() {
     this.stats = { fillers: 0, hedges: 0, vagueWords: 0, totalWords: 0, duration: 0 };
+    this.wordCounts = {};
     this.updateStatsDisplay();
     this.feedbackContent.innerHTML = '';
   }
