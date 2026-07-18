@@ -358,23 +358,18 @@ ${fullText}
 }
 
 // ===== AI API调用 =====
-const PROVIDER_ENDPOINTS = {
-  openai: 'https://api.openai.com/v1/chat/completions',
-  deepseek: 'https://api.deepseek.com/v1/chat/completions'
+const PROVIDER_DEFAULTS = {
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  custom: { baseUrl: '', model: 'deepseek-chat' }
 };
 
 function getProviderConfig(settings) {
-  const { provider, apiKey, model, customEndpoint } = settings;
-  switch (provider) {
-    case 'deepseek':
-      return { endpoint: PROVIDER_ENDPOINTS.deepseek, apiKey, model: model || 'deepseek-chat' };
-    case 'openai':
-      return { endpoint: PROVIDER_ENDPOINTS.openai, apiKey, model: model || 'gpt-4o-mini' };
-    case 'custom':
-      return { endpoint: customEndpoint, apiKey, model: model || 'deepseek-chat' };
-    default:
-      return { endpoint: PROVIDER_ENDPOINTS.deepseek, apiKey, model: model || 'deepseek-chat' };
-  }
+  const { provider, apiKey, model, baseUrl } = settings;
+  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.deepseek;
+  const finalBaseUrl = (baseUrl || defaults.baseUrl).replace(/\/+$/, '');
+  const endpoint = finalBaseUrl + '/chat/completions';
+  return { endpoint, apiKey, model: model || defaults.model };
 }
 
 async function callAI(messages, maxTokens = 200) {
@@ -480,15 +475,49 @@ function segmentText(text) {
   return words;
 }
 
-// ===== 设置管理 =====
-function loadSettings() {
-  const raw = localStorage.getItem('expr_settings');
+// ===== 设置管理（各厂商独立保存） =====
+function getActiveProvider() {
+  return localStorage.getItem('expr_active_provider') || 'deepseek';
+}
+
+function setActiveProvider(provider) {
+  localStorage.setItem('expr_active_provider', provider);
+}
+
+function loadProviderSettings(provider) {
+  const raw = localStorage.getItem('expr_settings_' + provider);
   if (raw) return JSON.parse(raw);
-  return { provider: 'deepseek', apiKey: '', model: '', customEndpoint: '' };
+  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.deepseek;
+  return { apiKey: '', model: '', baseUrl: defaults.baseUrl };
+}
+
+function saveProviderSettings(provider, settings) {
+  localStorage.setItem('expr_settings_' + provider, JSON.stringify(settings));
+}
+
+function loadSettings() {
+  // 兼容旧版单一配置迁移
+  const legacy = localStorage.getItem('expr_settings');
+  if (legacy) {
+    try {
+      const old = JSON.parse(legacy);
+      const provider = old.provider || 'deepseek';
+      const migrated = { apiKey: old.apiKey || '', model: old.model || '', baseUrl: old.customEndpoint ? old.customEndpoint.replace(/\/chat\/completions\/?$/, '') : (PROVIDER_DEFAULTS[provider]?.baseUrl || '') };
+      saveProviderSettings(provider, migrated);
+      setActiveProvider(provider);
+      localStorage.removeItem('expr_settings');
+      return { provider, ...migrated };
+    } catch(e) { localStorage.removeItem('expr_settings'); }
+  }
+  const provider = getActiveProvider();
+  const providerSettings = loadProviderSettings(provider);
+  return { provider, ...providerSettings };
 }
 
 function saveSettings(settings) {
-  localStorage.setItem('expr_settings', JSON.stringify(settings));
+  const { provider, apiKey, model, baseUrl } = settings;
+  setActiveProvider(provider);
+  saveProviderSettings(provider, { apiKey, model, baseUrl });
 }
 
 function loadCustomPrompt() {
@@ -602,8 +631,9 @@ class ExpressionTrainer {
     // Settings modal
     document.getElementById('btn-close-settings').addEventListener('click', () => this.settingsModal.classList.add('hidden'));
     document.getElementById('btn-save-settings').addEventListener('click', () => this.saveSettingsForm());
+    document.getElementById('btn-test-settings').addEventListener('click', () => this.testConnectivity());
     document.getElementById('settings-provider').addEventListener('change', (e) => {
-      document.getElementById('settings-custom-group').classList.toggle('hidden', e.target.value !== 'custom');
+      this.onProviderChange(e.target.value);
     });
 
     // Prompt modal
@@ -622,6 +652,11 @@ class ExpressionTrainer {
     document.getElementById('btn-welcome-start').addEventListener('click', () => {
       this.welcomeModal.classList.add('hidden');
       localStorage.setItem('expr_welcomed', '1');
+      // 如果未配置 API Key，自动弹出设置并显示警告
+      const settings = loadSettings();
+      if (!settings.apiKey) {
+        setTimeout(() => this.openSettings(true), 300);
+      }
     });
 
     // Tip / watermark
@@ -687,25 +722,118 @@ class ExpressionTrainer {
     this.addFeedbackItem(msg, 'ai');
   }
 
-  openSettings() {
+  openSettings(showWarning = false) {
     const settings = loadSettings();
-    document.getElementById('settings-provider').value = settings.provider || 'deepseek';
+    const providerSelect = document.getElementById('settings-provider');
+    providerSelect.value = settings.provider || 'deepseek';
     document.getElementById('settings-apikey').value = settings.apiKey || '';
     document.getElementById('settings-model').value = settings.model || '';
-    document.getElementById('settings-endpoint').value = settings.customEndpoint || '';
-    document.getElementById('settings-custom-group').classList.toggle('hidden', settings.provider !== 'custom');
+    const defaults = PROVIDER_DEFAULTS[settings.provider] || PROVIDER_DEFAULTS.deepseek;
+    document.getElementById('settings-baseurl').value = settings.baseUrl || defaults.baseUrl || '';
+    document.getElementById('settings-model').placeholder = defaults.model;
+    document.getElementById('settings-baseurl').placeholder = defaults.baseUrl || 'https://api.example.com/v1';
+    // BaseURL: deepseek/openai 默认显示但可编辑，custom 必填
+    document.getElementById('settings-baseurl-group').classList.remove('hidden');
+    // 警告
+    document.getElementById('settings-warning').classList.toggle('hidden', !showWarning);
+    // 清空上次测试结果
+    const testResult = document.getElementById('settings-test-result');
+    testResult.classList.add('hidden');
+    testResult.className = 'settings-test-result hidden';
     this.settingsModal.classList.remove('hidden');
   }
 
-  saveSettingsForm() {
-    const settings = {
+  onProviderChange(provider) {
+    const providerSettings = loadProviderSettings(provider);
+    const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.deepseek;
+    document.getElementById('settings-apikey').value = providerSettings.apiKey || '';
+    document.getElementById('settings-model').value = providerSettings.model || '';
+    document.getElementById('settings-baseurl').value = providerSettings.baseUrl || defaults.baseUrl || '';
+    document.getElementById('settings-model').placeholder = defaults.model;
+    document.getElementById('settings-baseurl').placeholder = defaults.baseUrl || 'https://api.example.com/v1';
+    // 清空测试结果
+    const testResult = document.getElementById('settings-test-result');
+    testResult.classList.add('hidden');
+  }
+
+  getSettingsFormValues() {
+    return {
       provider: document.getElementById('settings-provider').value,
       apiKey: document.getElementById('settings-apikey').value.trim(),
       model: document.getElementById('settings-model').value.trim(),
-      customEndpoint: document.getElementById('settings-endpoint').value.trim()
+      baseUrl: document.getElementById('settings-baseurl').value.trim()
     };
+  }
+
+  async testConnectivity() {
+    const settings = this.getSettingsFormValues();
+    const testResult = document.getElementById('settings-test-result');
+
+    if (!settings.apiKey) {
+      testResult.className = 'settings-test-result error';
+      testResult.textContent = '✗ 请先填写 API Key';
+      testResult.classList.remove('hidden');
+      return false;
+    }
+    if (settings.provider === 'custom' && !settings.baseUrl) {
+      testResult.className = 'settings-test-result error';
+      testResult.textContent = '✗ 自定义服务商请填写 Base URL';
+      testResult.classList.remove('hidden');
+      return false;
+    }
+
+    testResult.className = 'settings-test-result loading';
+    testResult.textContent = '⏳ 正在测试连接...';
+    testResult.classList.remove('hidden');
+
+    const config = getProviderConfig(settings);
+    try {
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 1
+        })
+      });
+
+      if (response.ok) {
+        testResult.className = 'settings-test-result success';
+        testResult.textContent = `✓ 连接成功！模型: ${config.model}`;
+        return true;
+      } else {
+        const errorText = await response.text().catch(() => '');
+        let hint = '';
+        if (response.status === 401) hint = 'API Key 无效或已过期';
+        else if (response.status === 404) hint = 'Base URL 或模型名称有误';
+        else if (response.status === 429) hint = '请求频率超限，请稍后再试';
+        else hint = `HTTP ${response.status}`;
+        testResult.className = 'settings-test-result error';
+        testResult.textContent = `✗ 连接失败: ${hint}`;
+        return false;
+      }
+    } catch (err) {
+      testResult.className = 'settings-test-result error';
+      testResult.textContent = `✗ 网络错误: ${err.message || '无法连接服务器'}`;
+      return false;
+    }
+  }
+
+  async saveSettingsForm() {
+    // 先测试连通性
+    const success = await this.testConnectivity();
+    if (!success) {
+      // 不保存，提示用户核对
+      return;
+    }
+    const settings = this.getSettingsFormValues();
     saveSettings(settings);
     this.settingsModal.classList.add('hidden');
+    this.addFeedbackItem('✅ 大模型配置已保存', 'good');
   }
 
   // ===== Prompt Editor =====

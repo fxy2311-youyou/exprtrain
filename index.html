@@ -176,10 +176,15 @@
   <div id="settings-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>⚙️ 设置</h2>
+        <h2>⚙️ 大模型配置</h2>
         <button id="btn-close-settings" class="btn-close">×</button>
       </div>
       <div class="modal-body">
+        <!-- 未配置提示 -->
+        <div id="settings-warning" class="settings-warning hidden">
+          ⚠️ 请先配置大模型 API，否则无法使用 AI 报告分析功能
+        </div>
+
         <div class="settings-group">
           <label class="settings-label">AI 服务商</label>
           <select id="settings-provider" class="settings-select">
@@ -196,12 +201,17 @@
           <label class="settings-label">模型</label>
           <input id="settings-model" type="text" class="settings-input" placeholder="deepseek-chat">
         </div>
-        <div class="settings-group hidden" id="settings-custom-group">
-          <label class="settings-label">自定义 Endpoint</label>
-          <input id="settings-endpoint" type="text" class="settings-input" placeholder="https://api.example.com/v1/chat/completions">
+        <div class="settings-group" id="settings-baseurl-group">
+          <label class="settings-label">Base URL</label>
+          <input id="settings-baseurl" type="text" class="settings-input" placeholder="https://api.deepseek.com/v1">
+          <span class="settings-hint">系统会自动拼接 /chat/completions</span>
         </div>
 
+        <!-- 连通性测试结果 -->
+        <div id="settings-test-result" class="settings-test-result hidden"></div>
+
         <div class="settings-actions">
+          <button id="btn-test-settings" class="btn-main" style="padding:10px 24px;background:#333;border:1px solid #555;color:#ccc;">🔗 测试连通性</button>
           <button id="btn-save-settings" class="btn-main btn-start" style="padding:10px 24px;">保存设置</button>
         </div>
       </div>

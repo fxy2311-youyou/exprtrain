@@ -384,7 +384,47 @@ button, input, select, textarea, .subtitle-scroll, .feedback-content, .modal-bod
 }
 .settings-actions {
   margin-top: 20px;
-  text-align: right;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.settings-hint {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+.settings-warning {
+  background: #1a1000;
+  border: 1px solid #FFD000;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #FFD000;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.settings-test-result {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.settings-test-result.success {
+  background: #001a0a;
+  border: 1px solid #00cc66;
+  color: #00cc66;
+}
+.settings-test-result.error {
+  background: #1a0000;
+  border: 1px solid #ff4444;
+  color: #ff4444;
+}
+.settings-test-result.loading {
+  background: #0a0a0a;
+  border: 1px solid #555;
+  color: #aaa;
 }
 
 /* ===== 移动端底部Tab ===== */
